@@ -1,0 +1,59 @@
+---
+title: "Work Machine Learning"
+author: "Bruce H"
+date: "3/27/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Issues:
+
+Many NA's
+Many classes are "character" when they should be numeric.  Do these have any values?
+
+Training and testing has same user names, so we should be trying to detect the user-specific characteristics.
+
+```{r}
+training <- read.csv("pml-training.csv", stringsAsFactors = FALSE)
+testing <- read.csv("pml-testing.csv", stringsAsFactors = FALSE)
+sort(unique(training$user_name))
+sort(unique(testing$user_name))
+```
+
+results <- rfe(tr2m[,-c(1,54)],tr2m[,54], sizes = c(20:30), rfeControl = control)
+
+> predictors(results)
+ [1] "roll_belt"            "magnet_dumbbell_y"    "magnet_dumbbell_z"    "pitch_forearm"        "yaw_belt"            
+ [6] "magnet_dumbbell_x"    "pitch_belt"           "roll_dumbbell"        "accel_dumbbell_y"     "roll_forearm"        
+[11] "magnet_belt_z"        "accel_forearm_x"      "magnet_belt_y"        "gyros_belt_z"         "accel_belt_z"        
+[16] "accel_dumbbell_z"     "yaw_dumbbell"         "magnet_arm_x"         "accel_dumbbell_x"     "roll_arm"            
+[21] "magnet_forearm_z"     "accel_arm_x"          "total_accel_dumbbell" "accel_forearm_z"      "yaw_arm"             
+[26] "magnet_belt_x"        "gyros_dumbbell_y"
+
+> predictors(res3)
+ [1] "roll_belt"            "magnet_dumbbell_z"    "magnet_dumbbell_y"    "pitch_forearm"        "yaw_belt"            
+ [6] "roll_dumbbell"        "pitch_belt"           "accel_dumbbell_y"     "magnet_belt_y"        "roll_forearm"        
+[11] "magnet_dumbbell_x"    "magnet_belt_z"        "accel_forearm_x"      "gyros_belt_z"         "roll_arm"            
+[16] "accel_dumbbell_z"     "accel_belt_z"         "accel_dumbbell_x"     "magnet_forearm_z"     "yaw_dumbbell"        
+[21] "gyros_dumbbell_y"     "magnet_forearm_y"     "yaw_arm"              "total_accel_dumbbell" "magnet_belt_x"       
+[26] "accel_forearm_z"
+
+> union(predictors(res3), predictors(results))
+ [1] "roll_belt"            "magnet_dumbbell_z"    "magnet_dumbbell_y"    "pitch_forearm"        "yaw_belt"            
+ [6] "roll_dumbbell"        "pitch_belt"           "accel_dumbbell_y"     "magnet_belt_y"        "roll_forearm"        
+[11] "magnet_dumbbell_x"    "magnet_belt_z"        "accel_forearm_x"      "gyros_belt_z"         "roll_arm"            
+[16] "accel_dumbbell_z"     "accel_belt_z"         "accel_dumbbell_x"     "magnet_forearm_z"     "yaw_dumbbell"        
+[21] "gyros_dumbbell_y"     "magnet_forearm_y"     "yaw_arm"              "total_accel_dumbbell" "magnet_belt_x"       
+[26] "accel_forearm_z"      "magnet_arm_x"         "accel_arm_x"
+
+> intersect(predictors(res3), predictors(results))
+ [1] "roll_belt"            "magnet_dumbbell_z"    "magnet_dumbbell_y"    "pitch_forearm"        "yaw_belt"            
+ [6] "roll_dumbbell"        "pitch_belt"           "accel_dumbbell_y"     "magnet_belt_y"        "roll_forearm"        
+[11] "magnet_dumbbell_x"    "magnet_belt_z"        "accel_forearm_x"      "gyros_belt_z"         "roll_arm"            
+[16] "accel_dumbbell_z"     "accel_belt_z"         "accel_dumbbell_x"     "magnet_forearm_z"     "yaw_dumbbell"        
+[21] "gyros_dumbbell_y"     "yaw_arm"              "total_accel_dumbbell" "magnet_belt_x"        "accel_forearm_z"
+
+
