@@ -1,7 +1,7 @@
 ---
 title: "Project"
 author: "Bruce H"
-date: "03/30/2020"
+date: "2020-03-30"
 output: 
   html_document: 
     keep_md: yes
