@@ -9,19 +9,124 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r}
+RNGversion("3.6.0")
+library(dplyr)
+library(caret)
+library(ggplot2)
+library(randomForest)
+```
+
+
 Issues:
 
 Many NA's
 Many classes are "character" when they should be numeric.  Do these have any values?
 
+```{r cache=TRUE}
+training <- read.csv("pml-training.csv", stringsAsFactors = FALSE)
+```
+
 Training and testing has same user names, so we should be trying to detect the user-specific characteristics.
 
 ```{r}
-training <- read.csv("pml-training.csv", stringsAsFactors = FALSE)
 testing <- read.csv("pml-testing.csv", stringsAsFactors = FALSE)
-sort(unique(training$user_name))
-sort(unique(testing$user_name))
+print(sort(unique(training$user_name)))
+print(sort(unique(testing$user_name)))
 ```
+
+Column selection and cleaning
+
+```{r}
+x <- lapply(training, class)
+x1 <- x[x == "character"]
+
+tr1 <- training
+for (col1 in names(x1)[4:36]) {
+    tr1[[col1]] <- as.numeric(tr1[[col1]])
+}
+
+# Get list of all with majority of NA's and remove
+
+x2 <- numeric()
+for (i in 1:dim(tr1)[2]) { if(mean(is.na(tr1[[i]])) > 0.5) x2 <- c(x2, i)}
+tr2 <- select(tr1, -all_of(x2))
+
+# Person Names are same in train and test, so we will keep those.
+
+# Removing other columns
+
+head(names(tr2),10)
+tr2 <- select(tr2, -all_of(c(1, 3:7)))
+head(names(tr2),10)
+
+# We should have 54 left
+dim(tr2)
+
+# Take care of classe
+tr2[,54] <- as.factor(tr2[,54])
+```
+
+Much smaller set for feature selection
+
+```{r}
+set.seed(1001)
+minitrain <- createDataPartition(tr2$user_name, p=0.1, list=FALSE)
+tr2m = tr2[minitrain,]
+```
+
+```{r feature_1, cache=TRUE}
+# Using RFE to check which factors to use
+# see https://machinelearningmastery.com/feature-selection-with-the-caret-r-package/
+
+set.seed(1002)
+control <- rfeControl(functions = rfFuncs, method="cv", number=10)
+feature.time.1 <- system.time(results <- rfe(tr2m[,-c(1,54)],tr2m[,54], sizes = c(8:30), rfeControl = control))
+```
+
+```{r}
+# predictors(results)
+plot(results, type = c("g", "o"))
+```
+
+```{r feature_2, cache=TRUE}
+# Recheck with another minitrain set
+
+set.seed(1003)
+minitrain3 <- createDataPartition(tr2$classe, p=0.1, list=FALSE)
+tr3m = tr2[minitrain3,]
+set.seed(1004)
+feature.time.2 <- system.time(res3 <- rfe(tr3m[,-c(1,54)],tr3m[,54], sizes = c(8:30), rfeControl = control))
+```
+
+```{r cache=TRUE, warning=FALSE}
+r2t <- data.frame(pred = predictors(results), rank = 1:length(predictors(results)))
+r3t <- data.frame(pred = predictors(res3), rank = 1:length(predictors(res3)))
+rtmatch <- inner_join(r2t, r3t, by = "pred")
+rtmatch$rank <- rtmatch$rank.x + rtmatch$rank.y
+rtmatch <- arrange(rtmatch, rank)
+rtmatch$pred[1:15]
+trnarrow <- select(training, all_of(rtmatch$pred[1:15]), classe)
+trnarrow$classe <- as.factor(trnarrow$classe)
+```
+
+```{r train, cache=TRUE}
+set.seed(1020)
+timertr <- system.time(mrfn.t <- train(classe ~ ., trnarrow, method = "rf"))
+```
+
+
+
+```{r eval=FALSE, cache=TRUE}
+set.seed(1010)
+timerf <- system.time(mrfn <- randomForest(classe ~ ., data = trnarrow))
+print(timerf)
+```
+
+The randomForest check took `r timerf`.
+
+
+
 
 results <- rfe(tr2m[,-c(1,54)],tr2m[,54], sizes = c(20:30), rfeControl = control)
 
@@ -55,5 +160,99 @@ results <- rfe(tr2m[,-c(1,54)],tr2m[,54], sizes = c(20:30), rfeControl = control
 [11] "magnet_dumbbell_x"    "magnet_belt_z"        "accel_forearm_x"      "gyros_belt_z"         "roll_arm"            
 [16] "accel_dumbbell_z"     "accel_belt_z"         "accel_dumbbell_x"     "magnet_forearm_z"     "yaw_dumbbell"        
 [21] "gyros_dumbbell_y"     "yaw_arm"              "total_accel_dumbbell" "magnet_belt_x"        "accel_forearm_z"
+
+trControl <- trainControl(method = "cv", number = 10)
+system.time(mrfn.t <- train(classe ~ ., trnarrow, method = "rf", trControl = trControl))
+   user  system elapsed 
+ 723.11   16.05  755.29
+
+> mrfn.t
+Random Forest 
+
+19622 samples
+   15 predictor
+    5 classes: 'A', 'B', 'C', 'D', 'E' 
+
+No pre-processing
+Resampling: Cross-Validated (10 fold) 
+Summary of sample sizes: 17661, 17659, 17659, 17659, 17661, 17661, ... 
+Resampling results across tuning parameters:
+
+  mtry  Accuracy   Kappa    
+   2    0.9896544  0.9869146
+   8    0.9904184  0.9878805
+  15    0.9851689  0.9812416
+
+Accuracy was used to select the optimal model using the largest value.
+The final value used for the model was mtry = 8.
+
+trControl <- trainControl(method = "repeatedcv", number = 10, repeats = 2)
+system.time(mrfn.t3 <- train(classe ~ ., trnarrow, method = "rf", trControl = trControl))
+   user  system elapsed 
+1321.17   31.50 1369.76
+
+> mrfn.t3
+Random Forest 
+
+19622 samples
+   15 predictor
+    5 classes: 'A', 'B', 'C', 'D', 'E' 
+
+No pre-processing
+Resampling: Cross-Validated (10 fold, repeated 2 times) 
+Summary of sample sizes: 17659, 17661, 17661, 17659, 17659, 17660, ... 
+Resampling results across tuning parameters:
+
+  mtry  Accuracy   Kappa    
+   2    0.9906230  0.9881389
+   8    0.9904701  0.9879458
+  15    0.9849408  0.9809527
+
+Accuracy was used to select the optimal model using the largest value.
+The final value used for the model was mtry = 2.
+
+trnarrow.a <- trnarrow
+trnarrow.a$user_name <- as.factor(training$user_name)
+system.time(mrfn.t4 <- train(classe ~ ., trnarrow.a, method = "rf", trControl = trControl))
+   user  system elapsed 
+1668.78   33.37 1717.45 
+> mrfn.t4
+Random Forest 
+
+19622 samples
+   16 predictor
+    5 classes: 'A', 'B', 'C', 'D', 'E' 
+
+No pre-processing
+Resampling: Cross-Validated (10 fold, repeated 2 times) 
+Summary of sample sizes: 17661, 17660, 17659, 17660, 17659, 17660, ... 
+Resampling results across tuning parameters:
+
+  mtry  Accuracy   Kappa    
+   2    0.9810926  0.9760793
+  11    0.9905465  0.9880430
+  20    0.9849658  0.9809854
+
+Accuracy was used to select the optimal model using the largest value.
+The final value used for the model was mtry = 11.
+
+
+```{r train, cache=TRUE}
+set.seed(1020)
+trControl <- trainControl(method = "cv", number = 10)
+timertr <- system.time(mrfn.t <- train(classe ~ ., trnarrow, method = "rf", trControl = trControl))
+r1 <- mrfn.t$results
+mtry.sel <- mrfn.t$bestTune[1]
+acc1 <- round(r1[r1$mtry == as.character(mtry.sel),2], 4)
+```
+
+
+```{r}
+fin1 <- mrfn.t$finalModel
+cm1 <- fin1$confusion[,1:5]
+tr.acc <- sum(diag(cm1)) / sum(cm1)
+print(fin1$confusion)
+
+```
 
 

@@ -77,6 +77,8 @@ mrf5 <- train(classe ~ ., tr2m[,c(1:14,54)], method = "rf")
 # Using RFE to check which factors to use
 # see https://machinelearningmastery.com/feature-selection-with-the-caret-r-package/
 
+control <- rfeControl(functions = rfFuncs, method="cv", number=10)
+
 results <- rfe(tr2m[,2:14],tr2m[,54], sizes = c(6:14), rfeControl = control)
 predictors(results)
 plot(results, type = c("g", "o"))
@@ -120,4 +122,23 @@ par.old <- par()
 trellis.par.set(caretTheme())
 plot(mrfn.t)
 
+# Accuracy using CV
+trControl <- trainControl(method = "cv", number = 10)
+system.time(mrfn.t <- train(classe ~ ., trnarrow, method = "rf", trControl = trControl))
+r1 <- mrfn.t$results
+mtry.sel <- mrfn.t$bestTune[1]
+acc1 <- round(r1[r1$mtry == as.character(mtry.sel),2], 4)
+
+# Confusion Matrix
+
+fin1 <- mrfn.t$finalModel
+fin1$confusion
+
+# Predictions
+nuse <- names(trnarrow)[1:15]
+tenarrow <- select(testing, all_of(nuse))
+predict(fin1, newdata = tenarrow)
+
+# Can't use testing as is, because the system complains of the NA's,
+# even though they don't occur in the columns that are used.
 
